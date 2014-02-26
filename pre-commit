@@ -1,0 +1,27 @@
+#!/bin/bash
+
+if git rev-parse --verify HEAD >/dev/null 2>&1; then
+	against=HEAD
+else
+	against=4b825dc642cb6eb9a060e54bf8d69288fbee4904
+fi
+
+SEARCH="$(git config --global --get rich.search)"
+RETCODE=0
+
+if [ -n "$SEARCH" ]; then
+	while read FILE; do
+		grep -EHn "$SEARCH" "$FILE" && RETCODE=1
+	done < <(git diff-index -p -M --name-status $against -- | cut -c3-)
+fi
+
+# Check for whitespace errors
+git diff-index -U3 --check --cached HEAD || RETCODE=1
+
+if [ "$RETCODE" = 1 ]; then
+	echo
+	echo "[01;31mCommit failed[0m"
+	echo
+fi
+
+exit $RETCODE
