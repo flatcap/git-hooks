@@ -26,7 +26,7 @@ function ignore_file()
 function find_forbidden()
 {
 	[ -z "$SEARCH" ] && return 1
-	ignore_file && return 1
+	ignore_file "$FILE" && return 1
 
 	local FILE="$1"
 	[ "$CHECK" = 0 ] && return 1
