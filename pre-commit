@@ -31,7 +31,7 @@ function find_forbidden()
 	local FILE="$1"
 	[ "$CHECK" = 0 ] && return 1
 
-	grep -EHn "$SEARCH" "$FILE"
+	git diff --cached "$FILE" | grep "^+" | grep -EHn "$SEARCH"
 }
 
 function find_badspace()
