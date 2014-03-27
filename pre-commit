@@ -31,7 +31,10 @@ function find_forbidden()
 	local FILE="$1"
 	[ "$CHECK" = 0 ] && return 1
 
-	git diff --cached "$FILE" | grep "^+" | grep -EHn "$SEARCH"
+	# Only search text added
+	# Strip leading "+"
+	# Highlight forbidden word (bright, inverse, red)
+	git diff --cached "$FILE" | sed -n '/^+/{s/^.//;p}' | GREP_COLORS="$GREP_COLORS:ms=01;07;31" grep --label "$FILE" -EH "$SEARCH"
 }
 
 function find_badspace()
