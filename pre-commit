@@ -1,7 +1,7 @@
 #!/bin/bash
 
 CHECK_SUFFIXES=(cpp c h conf gv sh txt vim html)
-SEARCH="$(git config --global --get rich.search)"
+SEARCH="$(git config --get rich.search)"
 RETCODE=0
 
 if git rev-parse --verify HEAD >/dev/null 2>&1; then
