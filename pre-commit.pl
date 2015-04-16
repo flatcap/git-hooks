@@ -8,6 +8,8 @@ our $VERSION = 0.1;
 use Data::Dumper;
 use IPC::Open3;
 use Readonly;
+use English '-no_match_vars';
+use Carp;
 
 $Data::Dumper::Indent    = 2;
 $Data::Dumper::Useqq     = 1;
@@ -18,16 +20,19 @@ sub run_command
 {
 	my ($command, $input) = @_;
 
+	Readonly my $RETVAL_SHIFT => 8;
+
 	my $pid = open3 my $in, my $out, my $err, $command
-		or die "could not run $command";
+	  or croak "could not run $command";
 
 	if (defined $input) {
-		print $in $input;
+		if (!print ${in}, $input) {
+			printf "Couldn't send data to command\n";
+			return (1);
+		}
 	}
 
 	my @ansout;
-	my @anserr;
-
 	if (defined $out) {
 		while (<$out>) {
 			chomp;
@@ -35,6 +40,7 @@ sub run_command
 		}
 	}
 
+	my @anserr;
 	if (defined $err) {
 		while (<$err>) {
 			chomp;
@@ -42,21 +48,22 @@ sub run_command
 		}
 	}
 
-	close ($in);
-
-	waitpid ($pid, 0);
-	my $retval = $? >> 8;
+	if (!close $in) {
+		printf "Close failed for command\n";
+	}
+	waitpid $pid, 0;
+	my $retval = $CHILD_ERROR >> $RETVAL_SHIFT;
 
 	return ($retval, @ansout, @anserr);
 }
 
 sub get_previous
 {
-	my ($retval, $out, $err) = run_command ("git rev-parse HEAD");
+	my ($retval, $out, $err) = run_command ('git rev-parse HEAD');
 
-	Readonly my $NO_HEAD    => "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
-	Readonly my $NOT_GIT    => "Not a git repository";
-	Readonly my $NO_COMMITS => "unknown revision";
+	Readonly my $NO_HEAD    => '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
+	Readonly my $NOT_GIT    => 'Not a git repository';
+	Readonly my $NO_COMMITS => 'unknown revision';
 
 	if (!defined $out) {
 		return;
@@ -64,11 +71,11 @@ sub get_previous
 
 	if ($retval) {
 		if ($out) {
-			if ($out =~ /$NOT_GIT/) {
+			if ($out =~ /$NOT_GIT/msx) {
 				return;
 			}
 
-			if ($out =~ /$NO_COMMITS/) {
+			if ($out =~ /$NO_COMMITS/msx) {
 				return $NO_HEAD;
 			}
 		}
@@ -88,23 +95,29 @@ sub parse_change
 {
 	my ($str) = @_;
 
-	my @parts = unpack ("CA[7]A[7]A[41]A[41]A*", $str);
+	Readonly my $_OM   => 1;
+	Readonly my $_NM   => 2;
+	Readonly my $_OH   => 3;
+	Readonly my $_NH   => 4;
+	Readonly my $_REST => 5;
+
+	my @parts = unpack 'CA[7]A[7]A[41]A[41]A*', $str;
 
 	my $data = {
-		old_mode => $parts[1],
-		new_mode => $parts[2],
-		old_hash => $parts[3],
-		new_hash => $parts[4],
+		old_mode => $parts[$_OM],
+		new_mode => $parts[$_NM],
+		old_hash => $parts[$_OH],
+		new_hash => $parts[$_NH],
 	};
 
-	@parts = @parts[5 .. $#parts];
-	my @p2 = split '\t', $parts[0];
+	@parts = @parts[$_REST .. $#parts];
+	my @p2 = split /\t/msx, $parts[0];
 
 	my $action = $p2[0];
 	my $pc;
-	if ($action =~ /^(R)(.+)/) {
+	if ($action =~ /^(R)(.+)/msx) {
 		$action = "$1";
-		$pc = "$2";
+		$pc     = "$2";
 	}
 	$data->{'action'}   = $action;
 	$data->{'filename'} = $p2[1];
@@ -121,7 +134,7 @@ sub parse_change
 
 sub get_changes
 {
-	my $prev = get_previous();
+	my $prev = get_previous ();
 	if (!$prev) {
 		return;
 	}
@@ -142,7 +155,7 @@ sub get_changes
 
 sub main
 {
-	my $changes = get_changes();
+	my $changes = get_changes ();
 	if (!defined $changes) {
 		printf "Not a git repository\n";
 		exit 1;
@@ -155,8 +168,9 @@ sub main
 	}
 
 	print Dumper $changes;
+	return 1;
 }
 
 
-return main ();
+exit main ();
 
