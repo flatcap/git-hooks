@@ -62,28 +62,23 @@ sub get_previous
 	my ($retval, $out, $err) = run_command ('git rev-parse HEAD');
 
 	Readonly my $NO_HEAD    => '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
-	Readonly my $NOT_GIT    => 'Not a git repository';
-	Readonly my $NO_COMMITS => 'unknown revision';
+	Readonly my $NOT_GIT    => 'Not\sa\sgit\srepository';
+	Readonly my $NO_COMMITS => 'unknown\srevision';
 
 	if (!defined $out) {
+		printf "ERROR\n";
 		return;
 	}
 
 	if ($retval) {
-		if ($out) {
-			if ($out =~ /$NOT_GIT/msx) {
-				return;
-			}
-
-			if ($out =~ /$NO_COMMITS/msx) {
-				return $NO_HEAD;
-			}
+		if ($out =~ /$NOT_GIT/msx) {
+			return;
 		}
 
-		return;
-	}
+		if ($out =~ /$NO_COMMITS/msx) {
+			return $NO_HEAD;
+		}
 
-	if (defined $err) {
 		return;
 	}
 
