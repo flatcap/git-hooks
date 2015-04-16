@@ -9,6 +9,11 @@ use Data::Dumper;
 use IPC::Open3;
 use Readonly;
 
+$Data::Dumper::Indent    = 2;
+$Data::Dumper::Useqq     = 1;
+$Data::Dumper::Quotekeys = 0;
+$Data::Dumper::Sortkeys  = 1;
+
 sub run_command
 {
 	my ($command, $input) = @_;
@@ -86,7 +91,7 @@ sub get_changes
 		return;
 	}
 
-	my ($retval, @out, @err) = run_command ("git diff-index --find-renames --cached --name-status $prev");
+	my ($retval, @out, @err) = run_command ("git diff-index --find-renames --cached $prev");
 
 	return \@out;
 }
@@ -104,13 +109,41 @@ if (!scalar @{$changes}) {
 	exit 1;
 }
 
+# print Dumper $changes;
 foreach (@{$changes}) {
-	my ($type, $file, $rename) = split "\t", $_;
+	my @parts = unpack ("CA[7]A[7]A[41]A[41]A*", $_);
 
-	if ($type =~ /^R/) {
-		$file = $rename;
+	my $data = {
+		old_mode => $parts[1],
+		new_mode => $parts[2],
+		old_hash => $parts[3],
+		new_hash => $parts[4],
+	};
+
+	@parts = @parts[5 .. $#parts];
+	my @p2 = split '\t', $parts[0];
+
+	my $action = $p2[0];
+	my $pc;
+	if ($action =~ /^(R)(.+)/) {
+		$action = "$1";
+		$pc = "$2";
 	}
-	printf ">>%s<< >>%s<<\n", $type, $file;
+	$data->{'action'}   = $action;
+	$data->{'filename'} = $p2[1];
+
+	if ($p2[2]) {
+		$data->{'rename'} = $p2[2];
+	}
+	if ($pc) {
+		$data->{'similarity'} = $pc;
+	}
+	print Dumper ($data);
+
+	# if ($type =~ /^R/) {
+	# 	$file = $rename;
+	# }
+	# printf ">>%s<< >>%s<<\n", $type, $file;
 }
 
 exit 1;
