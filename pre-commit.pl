@@ -84,34 +84,11 @@ sub get_previous
 	return $out;
 }
 
-sub get_changes
+sub parse_change
 {
-	my $prev = get_previous();
-	if (!$prev) {
-		return;
-	}
+	my ($str) = @_;
 
-	my ($retval, @out, @err) = run_command ("git diff-index --find-renames --cached $prev");
-
-	return \@out;
-}
-
-
-my $changes = get_changes();
-if (!defined $changes) {
-	printf "Not a git repository\n";
-	exit 1;
-}
-
-# printf "count = %d\n", scalar @{$changes};
-if (!scalar @{$changes}) {
-	printf "No changes to commit\n";
-	exit 1;
-}
-
-# print Dumper $changes;
-foreach (@{$changes}) {
-	my @parts = unpack ("CA[7]A[7]A[41]A[41]A*", $_);
+	my @parts = unpack ("CA[7]A[7]A[41]A[41]A*", $str);
 
 	my $data = {
 		old_mode => $parts[1],
@@ -138,25 +115,48 @@ foreach (@{$changes}) {
 	if ($pc) {
 		$data->{'similarity'} = $pc;
 	}
-	print Dumper ($data);
 
-	# if ($type =~ /^R/) {
-	# 	$file = $rename;
-	# }
-	# printf ">>%s<< >>%s<<\n", $type, $file;
+	return $data;
 }
 
-exit 1;
+sub get_changes
+{
+	my $prev = get_previous();
+	if (!$prev) {
+		return;
+	}
 
-# 	TYPE="${FILE:0:1}"
-# 	# [ "$TYPE" = "D" ] && continue	# Ignore deleted files
+	my ($retval, @out, @err) = run_command ("git diff-index --find-renames --cached $prev");
 
-# 	FILE="${FILE#*	}"
-# 	# [ $TYPE = "R" ] && FILE="${FILE#*	}"
-# 	echo "<<$TYPE>>	>>$FILE<<"
+	if ($retval || @err) {
+		return;
+	}
 
-# :100644 000000 637a09b86af61897fb72f26bfb874f2ae726db82 0000000000000000000000000000000000000000 D	banana.doc
-# :100644 100644 44a910549f687b3a5ae95900f1c1882b235e9ed5 2f37c4fb627f1745e28293ef08c3f324b3ab8b48 M	cherry.pdf
-# :000000 100644 0000000000000000000000000000000000000000 c933481298902a08032773cfbb62eeebeec72f37 A	endive.avi
-# :100644 100644 4c479defff9a675f4fa1a8867096d90733e9b769 4c479defff9a675f4fa1a8867096d90733e9b769 R100	apple.txt	pineapple.txt
-# :100755 100755 0a177122eddc779f29690106a62489d98450f73a 817dd879810b68c0826464ed3f4793ccd7704423 M	pre-commit
+	my @changes;
+	foreach (@out) {
+		push @changes, parse_change ($_);
+	}
+
+	return \@changes;
+}
+
+sub main
+{
+	my $changes = get_changes();
+	if (!defined $changes) {
+		printf "Not a git repository\n";
+		exit 1;
+	}
+
+	# printf "count = %d\n", scalar @{$changes};
+	if (!scalar @{$changes}) {
+		printf "No changes to commit\n";
+		exit 1;
+	}
+
+	print Dumper $changes;
+}
+
+
+return main ();
+
