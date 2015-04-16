@@ -148,6 +148,16 @@ sub get_changes
 	return \@changes;
 }
 
+
+# test_addition
+# test_modification
+# test_deletion
+# test_rename
+
+# get_deleted_file
+# get_file_diff
+# get_new_file
+
 sub main
 {
 	my $changes = get_changes ();
@@ -162,7 +172,18 @@ sub main
 		exit 1;
 	}
 
-	print Dumper $changes;
+	foreach (@{$changes}) {
+		my $c = $_;
+		if ($c->{'action'} eq 'A') {
+			printf "Add file %s\n", $c->{'filename'};
+		} elsif ($c->{'action'} eq 'M') {
+			printf "Modify file %s\n", $c->{'filename'};
+		} elsif ($c->{'action'} eq 'D') {
+			printf "Delete file %s\n", $c->{'filename'};
+		} elsif ($c->{'action'} eq 'R') {
+			printf "Rename file %s -> %s\n", $c->{'filename'}, $c->{'rename'};
+		}
+	}
 	return 1;
 }
 
