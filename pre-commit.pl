@@ -10,6 +10,7 @@ use IPC::Open3;
 use Readonly;
 use English '-no_match_vars';
 use Carp;
+use File::stat;
 
 $Data::Dumper::Indent    = 2;
 $Data::Dumper::Useqq     = 1;
@@ -22,15 +23,30 @@ Readonly my $DONT_MOD_FILES    => 'LICENSE,pre-commit.pl';
 Readonly my $DONT_REN_FILES    => 'apple.*';
 
 Readonly my @MOD_FORBIDDEN = (
-	'QWQ',
-	'RAR',
-	'\>\>\>\>\>\>\>',
-	'\=\=\=\=\=\=\=',
-	'\|\|\|\|\|\|\|',
-	'\<\<\<\<\<\<\<',
-	'WIP',
-	'TODO',
+	# forbidden strings
+	'<QWQ>',
+	'<RAR>',
+	'^\>\>\>\>\>\>\>',
+	'^\=\=\=\=\=\=\=',
+	'^\|\|\|\|\|\|\|',
+	'^\<\<\<\<\<\<\<',
+	'<WIP>',
+	'<TODO>',
+	# private key indicators
+	'<PRIVATE\sKEY>',
+	'<ssh-rsa>',
 );
+
+Readonly my @WHITESPACE = (
+	'\s+$',
+	'[ ][\t]',
+	'\s)',
+	'(\s',
+);
+
+Readonly my $FILE_MIN_SIZE => 0;
+Readonly my $FILE_MAX_SIZE => 5242880;
+Readonly my $FILE_UMASK    => 027;
 
 sub run_command
 {
@@ -185,6 +201,42 @@ sub get_file_diff
 }
 
 
+sub general_test
+{
+	my ($file) = @_;
+
+	if (!$file) {
+		return 0;
+	}
+
+	if ($file !~ /[^[:ascii:]]/) {
+		return 1;
+	}
+
+	if (($file != '.gitignore') && ($file =~ /^[.]/)) {
+		return 1;
+	}
+
+	# print Dumper $file;
+	my $sb = stat ($file);
+	# print Dumper $sb;
+	if (!$sb) {
+		return 0;
+	}
+
+	# printf "File is %s, size is %s, perm %04o, mtime %s\n", $file, $sb->size, $sb->mode & 07777, scalar localtime $sb->mtime;
+
+	if (($sb->size < $FILE_MIN_SIZE) || ($sb->size > $FILE_MAX_SIZE)) {
+		return 1;
+	}
+
+	if ($sb->mode & $FILE_UMASK) {
+		return 1;
+	}
+
+	return 0;
+}
+
 sub test_addition
 {
 	my ($data) = @_;
@@ -283,14 +335,17 @@ sub main
 
 	foreach (@{$changes}) {
 		my $c = $_;
-		printf "Testing file: %s\n", $c->{'filename'};
-		if ($c->{'action'} eq 'A') {
+		my $file = $c->{'filename'};
+		general_test ($file);
+		my $action = $c->{'action'};
+		printf "Testing file: %s\n", $file;
+		if ($action eq 'A') {
 			test_addition ($c);
-		} elsif ($c->{'action'} eq 'M') {
+		} elsif ($action eq 'M') {
 			test_modification ($c);
-		} elsif ($c->{'action'} eq 'D') {
+		} elsif ($action eq 'D') {
 			test_deletion ($c);
-		} elsif ($c->{'action'} eq 'R') {
+		} elsif ($action eq 'R') {
 			test_rename ($c);
 		}
 	}
