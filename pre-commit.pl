@@ -21,12 +21,24 @@ Readonly my $DONT_DEL_FILES    => 'LICENSE,banana.doc';
 Readonly my $DONT_MOD_FILES    => 'LICENSE,pre-commit.pl';
 Readonly my $DONT_REN_FILES    => 'apple.*';
 
+Readonly my @MOD_FORBIDDEN = (
+	'QWQ',
+	'RAR',
+	'\>\>\>\>\>\>\>',
+	'\=\=\=\=\=\=\=',
+	'\|\|\|\|\|\|\|',
+	'\<\<\<\<\<\<\<',
+	'WIP',
+	'TODO',
+);
+
 sub run_command
 {
 	my ($command, $input) = @_;
 
 	Readonly my $RETVAL_SHIFT => 8;
 
+	# printf "\e[32m%s\e[0m\n", $command;
 	my $pid = open3 my $in, my $out, my $err, $command
 	  or croak "could not run $command";
 
@@ -64,31 +76,30 @@ sub run_command
 
 sub get_previous
 {
-	my ($retval, $out, $err) = run_command ('git rev-parse HEAD');
+	my ($retval, @out, @err) = run_command ('git rev-parse HEAD');
 
 	Readonly my $NO_HEAD    => '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
 	Readonly my $NOT_GIT    => 'Not\sa\sgit\srepository';
 	Readonly my $NO_COMMITS => 'unknown\srevision';
 
-	if (!defined $out) {
-		printf "ERROR\n";
+	if (!scalar @out) {
 		return;
 	}
 
 	if ($retval) {
-		if ($out =~ /$NOT_GIT/msx) {
+		if ($out[0] =~ /$NOT_GIT/msx) {
 			return;
 		}
 
-		if ($out =~ /$NO_COMMITS/msx) {
+		if ($out[0] =~ /$NO_COMMITS/msx) {
 			return $NO_HEAD;
 		}
 
 		return;
 	}
 
-	chomp $out;
-	return $out;
+	chomp $out[0];
+	return $out[0];
 }
 
 sub parse_change
@@ -141,7 +152,7 @@ sub get_changes
 
 	my ($retval, @out, @err) = run_command ("git diff-index --find-renames --cached $prev");
 
-	if ($retval || @err) {
+	if ($retval || (scalar @err)) {
 		return;
 	}
 
@@ -154,13 +165,33 @@ sub get_changes
 }
 
 
+# get_deleted_file
+# get_new_file
+sub get_file_diff
+{
+	my ($file) = @_;
+
+	my ($retval, @out, @err) = run_command ("git diff HEAD -- '$file'");
+
+	if (scalar @err) {
+		return;
+	}
+
+	if ($retval) {
+		return;
+	}
+
+	return \@out;
+}
+
+
 sub test_addition
 {
 	my ($data) = @_;
 
-	my @suffixes = split /,/, $DONT_ADD_SUFFIXES;
+	my @suffixes = split /,/msx, $DONT_ADD_SUFFIXES;
 	foreach (@suffixes) {
-		if ($data->{'filename'} =~ /.*\.$_$/msx) {
+		if ($data->{'filename'} =~ /.*[.]$_$/msx) {
 			printf "\tADD BAD: %s\n", $data->{'filename'};
 			return 0;
 		}
@@ -173,11 +204,32 @@ sub test_modification
 {
 	my ($data) = @_;
 
-	my @files = split /,/, $DONT_MOD_FILES;
+	my @files = split /,/msx, $DONT_MOD_FILES;
 	foreach (@files) {
 		if ($data->{'filename'} eq $_) {
 			printf "\tMOD BAD: %s\n", $data->{'filename'};
 			return 0;
+		}
+	}
+
+	my $diff = get_file_diff ($data->{'filename'});
+	if (!defined $diff) {
+		return 1;
+	}
+
+	foreach (@{$diff}) {
+		my $line = $_;
+		if ($line !~ /^[+]/msx) {
+			next;
+		}
+		$line = substr $line, 1;
+		# printf "\t%s\n", $line;
+		foreach (@MOD_FORBIDDEN) {
+			my $test = $_;
+			# printf "\tTEST: >%s< >%s<\n", $line, $test;
+			if ($line =~ /$test/msx) {
+				printf "\tMOD BAD %s (%s)\n", $data->{'filename'}, $_;
+			}
 		}
 	}
 	printf "\tMOD OK: %s\n", $data->{'filename'};
@@ -188,7 +240,7 @@ sub test_deletion
 {
 	my ($data) = @_;
 
-	my @files = split /,/, $DONT_DEL_FILES;
+	my @files = split /,/msx, $DONT_DEL_FILES;
 	foreach (@files) {
 		if ($data->{'filename'} eq $_) {
 			printf "\tDELETE BAD: %s\n", $_;
@@ -203,7 +255,7 @@ sub test_rename
 {
 	my ($data) = @_;
 
-	my @files = split /,/, $DONT_REN_FILES;
+	my @files = split /,/msx, $DONT_REN_FILES;
 	foreach (@files) {
 		if ($data->{'filename'} =~ $_) {
 			printf "\tREN BAD: %s (%s)\n", $data->{'filename'}, $_;
@@ -215,22 +267,18 @@ sub test_rename
 }
 
 
-# get_deleted_file
-# get_file_diff
-# get_new_file
-
 sub main
 {
 	my $changes = get_changes ();
 	if (!defined $changes) {
 		printf "Not a git repository\n";
-		exit 1;
+		return 1;
 	}
 
 	# printf "count = %d\n", scalar @{$changes};
 	if (!scalar @{$changes}) {
 		printf "No changes to commit\n";
-		exit 1;
+		return 1;
 	}
 
 	foreach (@{$changes}) {
