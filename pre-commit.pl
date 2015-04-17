@@ -16,6 +16,11 @@ $Data::Dumper::Useqq     = 1;
 $Data::Dumper::Quotekeys = 0;
 $Data::Dumper::Sortkeys  = 1;
 
+Readonly my $DONT_ADD_SUFFIXES => 'o,pdf,mp3';
+Readonly my $DONT_DEL_FILES    => 'LICENSE,banana.doc';
+Readonly my $DONT_MOD_FILES    => 'LICENSE,pre-commit.pl';
+Readonly my $DONT_REN_FILES    => 'apple.*';
+
 sub run_command
 {
 	my ($command, $input) = @_;
@@ -149,10 +154,66 @@ sub get_changes
 }
 
 
-# test_addition
-# test_modification
-# test_deletion
-# test_rename
+sub test_addition
+{
+	my ($data) = @_;
+
+	my @suffixes = split /,/, $DONT_ADD_SUFFIXES;
+	foreach (@suffixes) {
+		if ($data->{'filename'} =~ /.*\.$_$/msx) {
+			printf "\tADD BAD: %s\n", $data->{'filename'};
+			return 0;
+		}
+	}
+	printf "\tADD OK: %s\n", $data->{'filename'};
+	return;
+}
+
+sub test_modification
+{
+	my ($data) = @_;
+
+	my @files = split /,/, $DONT_MOD_FILES;
+	foreach (@files) {
+		if ($data->{'filename'} eq $_) {
+			printf "\tMOD BAD: %s\n", $data->{'filename'};
+			return 0;
+		}
+	}
+	printf "\tMOD OK: %s\n", $data->{'filename'};
+	return 1;
+}
+
+sub test_deletion
+{
+	my ($data) = @_;
+
+	my @files = split /,/, $DONT_DEL_FILES;
+	foreach (@files) {
+		if ($data->{'filename'} eq $_) {
+			printf "\tDELETE BAD: %s\n", $_;
+			return 0;
+		}
+	}
+	printf "\tDELETE OK: %s\n", $data->{'filename'};
+	return 1;
+}
+
+sub test_rename
+{
+	my ($data) = @_;
+
+	my @files = split /,/, $DONT_REN_FILES;
+	foreach (@files) {
+		if ($data->{'filename'} =~ $_) {
+			printf "\tREN BAD: %s (%s)\n", $data->{'filename'}, $_;
+			return 0;
+		}
+	}
+	printf "\tREN OK: %s\n", $data->{'filename'};
+	return;
+}
+
 
 # get_deleted_file
 # get_file_diff
@@ -174,14 +235,15 @@ sub main
 
 	foreach (@{$changes}) {
 		my $c = $_;
+		printf "Testing file: %s\n", $c->{'filename'};
 		if ($c->{'action'} eq 'A') {
-			printf "Add file %s\n", $c->{'filename'};
+			test_addition ($c);
 		} elsif ($c->{'action'} eq 'M') {
-			printf "Modify file %s\n", $c->{'filename'};
+			test_modification ($c);
 		} elsif ($c->{'action'} eq 'D') {
-			printf "Delete file %s\n", $c->{'filename'};
+			test_deletion ($c);
 		} elsif ($c->{'action'} eq 'R') {
-			printf "Rename file %s -> %s\n", $c->{'filename'}, $c->{'rename'};
+			test_rename ($c);
 		}
 	}
 	return 1;
