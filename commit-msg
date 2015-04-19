@@ -1,6 +1,10 @@
 #!/bin/sh
 
-set > set-commit
+for i in "$@"; do
+	echo COMMIT ">>$i<<"
+done
+
+# set > set-commit
 
 sed -i '/# ------------------------ >8 ------------------------/,$d' "$1"
 sed -i 's/[ 	]\+$//' "$1"

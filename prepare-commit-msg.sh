@@ -1,10 +1,15 @@
 #!/bin/bash
 
 for i in "$@"; do
-	echo ARG ">>$i<<"
+	echo PREPARE ">>$i<<"
 done
 
-# set > set-merge
+git branch -vv
+
+# [ -s "$1" ] && cp "$1" "PREPARE_MESSAGE"
+
+echo env:
+set | grep "^GIT" | indent
 
 # sed -i \
 # 	-e '/^# Please enter the commit message for your changes. Lines starting/d' \
