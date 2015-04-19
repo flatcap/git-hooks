@@ -349,6 +349,7 @@ sub main
 			test_rename ($c);
 		}
 	}
+	return 0;
 	return 1;
 }
 

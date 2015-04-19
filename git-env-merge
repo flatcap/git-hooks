@@ -1,0 +1,5 @@
+GITHEAD_3bf420ef0b8cf0f9ea690f3e7822cf8d2be67d2d=bottom
+GIT_DIR=.git
+GIT_INDEX_FILE=.git/index
+GIT_PREFIX=
+GIT_REFLOG_ACTION='merge bottom'
